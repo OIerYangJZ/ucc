@@ -74,8 +74,9 @@ no high-level circuits that would show the gains above.
 3. **Benchmarks.** Contribute high-level circuits (phase estimation, QAOA,
    Grover, `QFT QFT^-1`) to ucc-bench so this class of optimization is
    tracked for every future pass.
-4. **Upstream reports.** File the Qiskit `CommutativeInverseCancellation`
-   scaling issue found during this work (quadratic in the number of custom
+4. **Upstream reports.** Follow up on the Qiskit issue found during this
+   work, [Qiskit#17272](https://github.com/Qiskit/qiskit/issues/17272)
+   (`CommutativeInverseCancellation` is quadratic in the number of custom
    composite gates; reproduces on Qiskit 2.6.0).
 
 ## Use of funds ($4,000)
