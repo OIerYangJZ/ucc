@@ -22,7 +22,7 @@ unchanged.
 | `structure-aware-passes` | The passes, tests and docs on top of UCC `main` (pull-request branch) |
 | `uf-microgrant` | That branch plus `research/` (benchmark scripts and results) and `proposal/` |
 
-- Upstream discussion: DISCUSSION_URL
+- Upstream discussion: https://github.com/unitaryfoundation/ucc/discussions/715
 - Microgrant proposal: [`proposal/unitary_foundation_microgrant_proposal.md`](proposal/unitary_foundation_microgrant_proposal.md)
 - Benchmarks: [`research/README.md`](research/README.md)
 - Related paper: [representation-as-resource](https://github.com/OIerYangJZ/representation-as-resource)

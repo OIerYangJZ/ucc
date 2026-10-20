@@ -65,7 +65,7 @@ no high-level circuits that would show the gains above.
 
 ## Proposed work (about 8 weeks, part time)
 
-1. **Upstream the passes.** UCC's New Compiler Pass discussion (DISCUSSION_URL),
+1. **Upstream the passes.** UCC's New Compiler Pass discussion (https://github.com/unitaryfoundation/ucc/discussions/715),
    then focused pull requests with tests and documentation; maintainers
    decide whether `ucc.compile()` enables them by default.
 2. **Compile time.** Bring the overhead on basis-level ucc-bench circuits
