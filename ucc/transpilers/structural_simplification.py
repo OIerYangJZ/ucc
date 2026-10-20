@@ -360,12 +360,13 @@ def _merge_adjacent_parameterized_gates(circuit):
 def _run_commutative_inverse_cancellation(circuit):
     """Run Qiskit's commutative inverse cancellation when it is affordable.
 
-    Its cost grows superlinearly with circuit size (306 s on a 215k-gate
-    quantum-volume circuit), and for custom composite gates it rebuilds both
-    operators on every pairwise check (600 copies of one custom gate took
-    35 s). It is skipped on large circuits, which are mostly already
-    primitive gates that UCC's local CommutativeCancellation handles, and
-    on circuits with many custom gates. Exact adjacent ``U U^-1`` pairs are
+    Its look-back is unbounded, so the cost is worst-case quadratic: each
+    gate is compared with every earlier gate it commutes through (306 s on a
+    215k-gate quantum-volume circuit). Copies of one custom gate commute with
+    each other and are compared through their matrices, so 600 back-to-back
+    copies took 35 s (Qiskit/qiskit#17272). It is skipped on large circuits,
+    which are mostly already primitive gates that UCC's local
+    CommutativeCancellation handles, and on circuits with many custom gates. Exact adjacent ``U U^-1`` pairs are
     still removed by ``_cancel_adjacent_inverse_blocks``, and the blockwise
     path still applies it to one copy of a repeated block.
     """
