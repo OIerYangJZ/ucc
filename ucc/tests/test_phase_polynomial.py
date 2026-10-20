@@ -175,3 +175,18 @@ def test_block_is_kept_when_resynthesis_is_not_cheaper():
     result = run_pass(circuit)
 
     assert result == circuit
+
+
+def test_block_is_kept_when_two_qubit_consolidation_does_as_well():
+    """Regression: a block was replaced whenever the parity network beat its
+    raw CNOT count, even when later two-qubit consolidation does as well.
+    Parity networks spread CNOTs over more qubits, which made a 100-qubit
+    QFT go from 2,740 to 3,695 CNOTs after consolidation."""
+    circuit = QuantumCircuit(2)
+    for angle in (0.3, 0.5, 0.7):
+        circuit.cp(angle, 0, 1)
+        circuit.rz(0.1, 1)
+
+    result = run_pass(circuit)
+
+    assert result == circuit

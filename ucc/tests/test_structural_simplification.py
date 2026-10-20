@@ -180,3 +180,32 @@ def test_pass_simplifies_large_dominant_repeated_prefix_blockwise():
 
     assert len(result.data) < len(circuit.data) // 2
     assert Operator(result).equiv(Operator(circuit))
+
+
+def _two_qubit_count(circuit):
+    return sum(
+        1 for instruction in circuit.data if len(instruction.qubits) > 1
+    )
+
+
+def test_lowest_cost_local_optimization_keeps_the_cheaper_pipeline():
+    from qiskit.transpiler.passes import CommutativeCancellation
+
+    from ucc.transpilers.ucc_defaults import LowestCostLocalOptimization
+
+    circuit = QuantumCircuit(2)
+    circuit.cx(0, 1)
+    circuit.cx(0, 1)
+    circuit.h(0)
+
+    result = PassManager(
+        [
+            LowestCostLocalOptimization(
+                [lambda: [], lambda: [CommutativeCancellation()]],
+                TARGET_BASIS,
+            )
+        ]
+    ).run(circuit)
+
+    assert _two_qubit_count(result) == 0
+    assert Operator(result).equiv(Operator(circuit))

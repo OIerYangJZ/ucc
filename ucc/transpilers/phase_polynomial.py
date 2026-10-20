@@ -33,7 +33,13 @@ from qiskit.dagcircuit import DAGOpNode
 from qiskit.exceptions import QiskitError
 from qiskit.dagcircuit.collect_blocks import BlockCollector
 from qiskit.synthesis import synth_cnot_count_full_pmh, synth_cnot_phase_aam
+from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import TransformationPass
+from qiskit.transpiler.passes import (
+    Collect2qBlocks,
+    ConsolidateBlocks,
+    UnitarySynthesis,
+)
 
 _TWO_PI = 2 * math.pi
 _ANGLE_TOLERANCE = 1e-10
@@ -289,6 +295,33 @@ def _parity_network(num_qubits, columns):
     return synth_cnot_phase_aam(cnots, angles)
 
 
+_CONSOLIDATION_CACHE = {}
+_MAX_CONSOLIDATION_CACHE = 4096
+
+
+def _consolidated_cx_count(circuit, block_key):
+    """CNOTs left after two-qubit block consolidation and resynthesis.
+
+    Cached per block polynomial (bounded); only the accept/reject decision
+    depends on it, never the emitted circuit.
+    """
+    cached = _CONSOLIDATION_CACHE.get(block_key)
+    if cached is not None:
+        return cached
+    consolidated = PassManager(
+        [
+            Collect2qBlocks(),
+            ConsolidateBlocks(force_consolidate=True),
+            UnitarySynthesis(basis_gates=["cx", "u"]),
+        ]
+    ).run(circuit)
+    count = _cx_count(consolidated)
+    if len(_CONSOLIDATION_CACHE) >= _MAX_CONSOLIDATION_CACHE:
+        _CONSOLIDATION_CACHE.clear()
+    _CONSOLIDATION_CACHE[block_key] = count
+    return count
+
+
 @lru_cache(maxsize=4096)
 def _cached_block_synthesis(num_qubits, terms_key, linear_key):
     """Synthesize a block exactly repeated elsewhere (rounded-angle key)."""
@@ -440,7 +473,16 @@ class PhasePolynomialSynthesis(TransformationPass):
     Both rewrites are exact, including global phase. Run it before basis
     translation for the controlled-gate rewrite; block resynthesis also
     pays off after translation. Synthesized circuits are inlined.
+
+    Args:
+        max_block_qubits: Blocks on more qubits are left alone. Parity
+            network synthesis is the expensive step; wide blocks rarely beat
+            two-qubit consolidation.
     """
+
+    def __init__(self, max_block_qubits=_MAX_POLYNOMIAL_QUBITS):
+        super().__init__()
+        self.max_block_qubits = max_block_qubits
 
     def run(self, dag):
         _inline_custom_composites(dag)
@@ -458,17 +500,25 @@ class PhasePolynomialSynthesis(TransformationPass):
             _is_collectable, split_blocks=True, min_block_size=2
         )
         for block in blocks:
-            self._resynthesize_block(dag, block)
+            self._resynthesize_block(dag, block, self.max_block_qubits)
         return dag
 
     @staticmethod
-    def _resynthesize_block(dag, block):
+    def _resynthesize_block(
+        dag, block, max_block_qubits=_MAX_POLYNOMIAL_QUBITS
+    ):
         block_qubits = sorted(
             {qubit for node in block for qubit in node.qargs},
             key=lambda qubit: dag.find_bit(qubit).index,
         )
         # Single-qubit phase runs are left to the 1q optimizer.
-        if not 2 <= len(block_qubits) <= _MAX_POLYNOMIAL_QUBITS:
+        if not 2 <= len(block_qubits) <= max_block_qubits:
+            return
+        direct_cost = sum(
+            _DIRECT_CX_COST.get(node.op.name, 0) for node in block
+        )
+        # A non-trivial two-qubit phase already needs two CNOTs.
+        if direct_cost <= 2:
             return
         positions = {qubit: index for index, qubit in enumerate(block_qubits)}
         circuit = QuantumCircuit(len(block_qubits))
@@ -478,27 +528,29 @@ class PhasePolynomialSynthesis(TransformationPass):
             terms, global_phase, linear_map = phase_polynomial_of(circuit)
         except ValueError:
             return
-
-        direct_cost = sum(
-            _DIRECT_CX_COST.get(node.op.name, 0) for node in block
+        block_key = (
+            len(block_qubits),
+            tuple(
+                sorted(
+                    (parity, round(angle, 12))
+                    for parity, angle in terms.items()
+                )
+            ),
+            None if linear_map is None else tuple(linear_map),
         )
-        # A non-trivial two-qubit phase already needs two CNOTs.
-        if direct_cost <= 2:
-            return
         try:
-            synthesized = _cached_block_synthesis(
-                len(block_qubits),
-                tuple(
-                    sorted(
-                        (parity, round(angle, 12))
-                        for parity, angle in terms.items()
-                    )
-                ),
-                None if linear_map is None else tuple(linear_map),
-            )
+            synthesized = _cached_block_synthesis(*block_key)
         except (QiskitError, ValueError):
             return
         if _cx_count(synthesized) >= direct_cost:
+            return
+        # Later local passes consolidate two-qubit runs (a cp is cx-rz-cx,
+        # and several on one pair collapse to at most three CNOTs). A parity
+        # network spreads CNOTs over more qubits and defeats that, so it has
+        # to beat what consolidation would reach, not just the raw count.
+        if _cx_count(synthesized) >= _consolidated_cx_count(
+            circuit, block_key
+        ):
             return
         replacement = circuit_to_dag(synthesized)
         replacement.global_phase += global_phase

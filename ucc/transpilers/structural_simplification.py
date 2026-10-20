@@ -13,11 +13,16 @@ unitary is preserved by construction.
 ``TransformationPass``; run it before basis translation.
 """
 
+import bisect
+import contextvars
 import math
 import os
 from dataclasses import dataclass
 
+import numpy
+
 from qiskit.circuit import CircuitInstruction
+from qiskit.circuit.library import CPhaseGate, CZGate, PhaseGate, RZGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.circuit.library import get_standard_gate_name_mapping
 from qiskit.exceptions import QiskitError
@@ -35,6 +40,7 @@ _MERGEABLE_PARAMETERIZED_GATES = {"rx", "ry", "rz", "p", "cp"}
 _DIAGONAL_PHASE_GATES = {"rz", "p", "cp", "cz"}
 _MIN_BLOCKWISE_REPEAT_PRESIMPLIFY_SIZE = 10000
 _MAX_CUSTOM_GATES_FOR_COMMUTATION = 32
+_MAX_COMMUTATIVE_INVERSE_SCAN_SIZE = 5000
 _STANDARD_GATE_NAMES = frozenset(get_standard_gate_name_mapping()) | {
     "measure",
     "barrier",
@@ -83,6 +89,48 @@ def _instruction_signature(circuit, instruction):
         ),
         tuple(circuit.find_bit(qubit).index for qubit in instruction.qubits),
         tuple(circuit.find_bit(clbit).index for clbit in instruction.clbits),
+    )
+
+
+# Within one simplify_circuit() call the same circuit object is scanned by
+# several helpers; signatures are computed once per object for that call.
+# Scoping the memo to the call keeps it safe against later mutation.
+_SIGNATURE_CACHE = contextvars.ContextVar("ucc_signature_cache", default=None)
+
+
+def _memoized(kind, circuit, compute):
+    cache = _SIGNATURE_CACHE.get()
+    if cache is None:
+        return compute()
+    entry = cache.get((kind, id(circuit)))
+    if entry is not None and entry[0] is circuit:
+        return entry[1]
+    value = compute()
+    cache[(kind, id(circuit))] = (circuit, value)
+    return value
+
+
+def _circuit_signatures(circuit):
+    """Signature of every instruction, memoized within simplify_circuit()."""
+    return _memoized(
+        "signatures",
+        circuit,
+        lambda: [
+            _instruction_signature(circuit, instruction)
+            for instruction in circuit.data
+        ],
+    )
+
+
+def _circuit_inverse_signatures(circuit):
+    """Inverse signature of every instruction (None if not invertible)."""
+    return _memoized(
+        "inverse_signatures",
+        circuit,
+        lambda: [
+            _inverse_instruction_signature(circuit, instruction)
+            for instruction in circuit.data
+        ],
     )
 
 
@@ -186,34 +234,34 @@ def _build_diagonal_phase_span_nodes(circuit):
 
 
 def _canonicalize_diagonal_phase_span(circuit, node):
-    """Canonicalize a commuting diagonal-phase span by aggregating equal terms."""
+    """Canonicalize a commuting diagonal-phase span by aggregating equal terms.
 
+    Returns the span's instructions: equal terms (same gate on the same
+    qubits) summed in order of first appearance, identities dropped.
+    """
+
+    span = circuit.data[node.start_index : node.end_index]
     phase_terms = {}
-    ordered_keys = []
-    for instruction in circuit.data[node.start_index : node.end_index]:
+    for instruction in span:
         parameter = _diagonal_phase_parameter(instruction.operation)
         if parameter is None:
-            return _build_circuit_from_instructions(
-                circuit, list(circuit.data[node.start_index : node.end_index])
-            )
+            return list(span)
         signature = _diagonal_phase_signature(circuit, instruction)
-        if signature not in phase_terms:
-            phase_terms[signature] = 0.0
-            ordered_keys.append(signature)
-        phase_terms[signature] += parameter
+        if signature in phase_terms:
+            phase_terms[signature][1] += parameter
+        else:
+            phase_terms[signature] = [instruction, parameter]
 
-    rebuilt_span = circuit.copy_empty_like()
-    rebuilt_span.global_phase = 0
-    for gate_name, qubit_indices, clbit_indices in ordered_keys:
-        parameter = phase_terms[(gate_name, qubit_indices, clbit_indices)]
+    rebuilt_span = []
+    for (gate_name, _, _), (instruction, parameter) in phase_terms.items():
         if abs(parameter) <= _PARAMETER_MERGE_TOLERANCE:
             continue
         if gate_name == "rz":
-            rebuilt_span.rz(parameter, qubit_indices[0])
+            operation = RZGate(parameter)
         elif gate_name == "p":
-            rebuilt_span.p(parameter, qubit_indices[0])
+            operation = PhaseGate(parameter)
         elif gate_name == "cp":
-            rebuilt_span.cp(parameter, qubit_indices[0], qubit_indices[1])
+            operation = CPhaseGate(parameter)
         elif gate_name == "cz":
             # Each cz contributes pi; an even count cancels to the identity.
             residue = parameter % (2 * math.pi)
@@ -222,11 +270,14 @@ def _canonicalize_diagonal_phase_span(circuit, node):
                 <= _PARAMETER_MERGE_TOLERANCE
             ):
                 continue
-            rebuilt_span.cz(qubit_indices[0], qubit_indices[1])
+            operation = CZGate()
         else:
-            return _build_circuit_from_instructions(
-                circuit, list(circuit.data[node.start_index : node.end_index])
+            return list(span)
+        rebuilt_span.append(
+            CircuitInstruction(
+                operation, instruction.qubits, instruction.clbits
             )
+        )
     return rebuilt_span
 
 
@@ -243,25 +294,15 @@ def _canonicalize_diagonal_phase_spans(circuit):
     rebuilt_circuit = circuit.copy_empty_like()
     rebuilt_circuit.global_phase = circuit.global_phase
     next_index = 0
-    used_semantic_node = False
-
     for node in diagonal_nodes:
         _append_instruction_sequence(
             rebuilt_circuit, circuit.data[next_index : node.start_index]
         )
-        simplified_span = _canonicalize_diagonal_phase_span(circuit, node)
-        for instruction in simplified_span.data:
-            _append_mapped_instruction(
-                rebuilt_circuit, simplified_span, instruction
-            )
-        used_semantic_node = True
+        _append_instruction_sequence(
+            rebuilt_circuit, _canonicalize_diagonal_phase_span(circuit, node)
+        )
         next_index = node.end_index
-
     _append_instruction_sequence(rebuilt_circuit, circuit.data[next_index:])
-
-    if not used_semantic_node:
-        return circuit
-
     return rebuilt_circuit
 
 
@@ -319,13 +360,18 @@ def _merge_adjacent_parameterized_gates(circuit):
 def _run_commutative_inverse_cancellation(circuit):
     """Run Qiskit's commutative inverse cancellation when it is affordable.
 
-    Qiskit's commutation checker caches standard gates only; for custom
-    composite gates it rebuilds both operators on every pairwise check,
-    which is quadratic in their number (600 copies of one custom gate took
-    35 s). Exact adjacent ``U U^-1`` pairs are still removed by
-    ``_cancel_adjacent_inverse_blocks``.
+    Its cost grows superlinearly with circuit size (306 s on a 215k-gate
+    quantum-volume circuit), and for custom composite gates it rebuilds both
+    operators on every pairwise check (600 copies of one custom gate took
+    35 s). It is skipped on large circuits, which are mostly already
+    primitive gates that UCC's local CommutativeCancellation handles, and
+    on circuits with many custom gates. Exact adjacent ``U U^-1`` pairs are
+    still removed by ``_cancel_adjacent_inverse_blocks``, and the blockwise
+    path still applies it to one copy of a repeated block.
     """
 
+    if len(circuit.data) > _MAX_COMMUTATIVE_INVERSE_SCAN_SIZE:
+        return circuit
     custom_instructions = sum(
         1
         for instruction in circuit.data
@@ -351,36 +397,58 @@ def _find_repeated_run(
     if max_candidate_size < 1:
         return None
 
-    signatures = [
-        _instruction_signature(circuit, instruction)
-        for instruction in circuit.data
-    ]
+    ids = _signature_ids(circuit)
     best_match = None
     best_coverage = 0
 
     for block_size in range(1, max_candidate_size + 1):
+        # Copies at s and s + block_size match iff ids[i] == ids[i + L] for
+        # every i in between, so the number of repeats starting at s follows
+        # from the run of equalities starting there.
+        matches = _equal_run_lengths(ids, block_size)
+        repeating = numpy.flatnonzero(matches >= block_size)
+        # The scan below visits the same starts as a position-by-position
+        # walk that jumps past each repeated run; starts without a repeat
+        # only advance it by one, so only repeating starts are visited.
         start_index = 0
-        while start_index + min_repeats * block_size <= instruction_count:
-            block = signatures[start_index : start_index + block_size]
-            repeat_count = 1
-            while (
-                start_index + (repeat_count + 1) * block_size
-                <= instruction_count
-            ):
-                candidate_start = start_index + repeat_count * block_size
-                candidate_end = candidate_start + block_size
-                if signatures[candidate_start:candidate_end] != block:
-                    break
-                repeat_count += 1
-
+        cursor = 0
+        while True:
+            cursor = bisect.bisect_left(repeating, start_index, lo=cursor)
+            if cursor >= len(repeating):
+                break
+            start_index = int(repeating[cursor])
+            if start_index + min_repeats * block_size > instruction_count:
+                break
+            repeat_count = 1 + int(matches[start_index]) // block_size
             coverage = repeat_count * block_size
             if repeat_count >= min_repeats and coverage > best_coverage:
                 best_match = (start_index, block_size, repeat_count)
                 best_coverage = coverage
-
-            start_index += coverage if repeat_count > 1 else 1
+            start_index += coverage
 
     return best_match
+
+
+def _signature_ids(circuit):
+    """Small integer per distinct instruction signature, in circuit order."""
+    ids = {}
+    return numpy.fromiter(
+        (
+            ids.setdefault(signature, len(ids))
+            for signature in _circuit_signatures(circuit)
+        ),
+        dtype=numpy.int64,
+        count=len(circuit.data),
+    )
+
+
+def _equal_run_lengths(ids, offset):
+    """``r[i]`` = number of consecutive ``j >= i`` with ids[j] == ids[j+offset]."""
+    equal = ids[:-offset] == ids[offset:]
+    positions = numpy.arange(len(equal))
+    next_mismatch = numpy.where(equal, len(equal), positions)
+    next_mismatch = numpy.minimum.accumulate(next_mismatch[::-1])[::-1]
+    return next_mismatch - positions
 
 
 def _find_repeated_prefix(
@@ -395,10 +463,7 @@ def _find_repeated_prefix(
     if max_candidate_size < 1:
         return None
 
-    signatures = [
-        _instruction_signature(circuit, instruction)
-        for instruction in circuit.data
-    ]
+    signatures = _circuit_signatures(circuit)
 
     if instruction_count > _FAST_PREFIX_SCAN_SIZE:
         full_coverage_divisors = [
@@ -577,14 +642,8 @@ def _find_adjacent_inverse_blocks(
     if max_candidate_size < 1:
         return None
 
-    signatures = [
-        _instruction_signature(circuit, instruction)
-        for instruction in circuit.data
-    ]
-    inverse_signatures = [
-        _inverse_instruction_signature(circuit, instruction)
-        for instruction in circuit.data
-    ]
+    signatures = _circuit_signatures(circuit)
+    inverse_signatures = _circuit_inverse_signatures(circuit)
     # A block X followed by X^-1 is centered at the boundary c between them:
     # instruction c-1-k must equal the inverse of instruction c+k for every
     # k < len(X). Grow that radius from each center; this is linear in the
@@ -761,14 +820,14 @@ def _blockwise_structural_pre_simplify_repeated_prefix(circuit):
 
 
 def _append_instruction_sequence(circuit, instructions):
-    """Append a sequence of instructions to a circuit."""
+    """Append instructions whose bits already belong to ``circuit``.
+
+    Every caller rebuilds from ``copy_empty_like`` of the source circuit, so
+    the unchecked fast path is safe and avoids per-gate argument expansion.
+    """
 
     for instruction in instructions:
-        circuit.append(
-            instruction.operation,
-            instruction.qubits,
-            instruction.clbits,
-        )
+        circuit._append(instruction)
 
 
 def _append_mapped_instruction(
@@ -816,9 +875,15 @@ def simplify_circuit(circuit):
     whose DAG round trip may reorder independent gates. Returns ``circuit``
     itself when nothing is removed.
     """
-    simplified = _blockwise_structural_pre_simplify_repeated_prefix(circuit)
-    if simplified is None:
-        simplified = _structural_pre_simplify(circuit)
+    token = _SIGNATURE_CACHE.set({})
+    try:
+        simplified = _blockwise_structural_pre_simplify_repeated_prefix(
+            circuit
+        )
+        if simplified is None:
+            simplified = _structural_pre_simplify(circuit)
+    finally:
+        _SIGNATURE_CACHE.reset(token)
     if len(simplified.data) >= len(circuit.data):
         return circuit
     return simplified
