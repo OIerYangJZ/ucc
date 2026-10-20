@@ -56,9 +56,48 @@ For example, we can define a random circuit in Qiskit and optimize it using the 
 Default Compilation Passes
 **************************
 
-When compiling, UCC uses a set of pre-defined qiskit passes set of compilation passes specified in ``ucc.ucc_defaults.UCCDefault1``.
-These were chosen based on their good default performance on a set of input circuits. The vision for UCC is
-to iterate and improve on these defaults, following the process in :doc:`contributing`.
+``ucc.compile()`` runs ``UCCDefault1(structural_prepass=True)``, defined in ``ucc.transpilers.ucc_defaults``.
+The vision for UCC is to iterate and improve on these defaults, following the process in :doc:`contributing`.
+
+Lowering a circuit to basis gates first expands high-level structure, such as a ``QFT`` followed by its inverse,
+a repeated custom gate, or a controlled power of a diagonal unitary, into many primitive gates that local passes
+can no longer recognize. With ``structural_prepass=True``, two passes run on the original high-level
+instructions first:
+
+* ``ucc.transpilers.structural_simplification.PreBasisStructuralSimplification`` removes exact inverse pairs,
+  merges commuting rotations and phases, and simplifies one copy of a repeated block before reusing it.
+* ``ucc.transpilers.phase_polynomial.PhasePolynomialSynthesis`` rewrites CNOT + phase structure, such as
+  ``C-U^(2^k)`` for a diagonal ``U`` in phase estimation or a layer of commuting ``rzz`` gates, as a phase
+  polynomial synthesized with a parity network. A rewrite is kept only if it uses fewer CNOTs.
+
+Both are exact: the circuit's unitary, including global phase, is unchanged. Without a target device the
+circuit is then translated to the target gateset and optimized by UCC's local passes. With a
+``target_backend``, the passes run in the ``pre_init`` stage of Qiskit's level-3 preset pass manager, which
+handles layout, routing and hardware optimization; a circuit dominated by one repeated composite block is
+mapped one block at a time (``ucc.transpilers.repeated_run``). ``UCCDefault1()`` without the flag keeps the
+original UCC passes.
+
+.. testcode::
+
+    from qiskit import QuantumCircuit, transpile
+    from qiskit.circuit.library import QFTGate
+    from ucc import UCCDefault1
+
+    circuit = QuantumCircuit(4)
+    for _ in range(5):
+        circuit.append(QFTGate(4), range(4))
+        circuit.append(QFTGate(4).inverse(), range(4))
+    circuit.h(0)
+
+    basis_first = UCCDefault1().run(
+        transpile(circuit, basis_gates=["cx", "rz", "rx", "ry", "h"], optimization_level=0)
+    )
+    structural = UCCDefault1(structural_prepass=True).run(circuit)
+    print(basis_first.size(), dict(structural.count_ops()))
+
+.. testoutput::
+
+    776 {'h': 1}
 
 Customization
 *************

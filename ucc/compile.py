@@ -1,11 +1,17 @@
+import dataclasses
+import sys
+import warnings
+
 from qbraid.programs.alias_manager import get_program_type_alias
 from qbraid.transpiler import ConversionGraph
 from qbraid.transpiler import transpile as translate
 from qiskit import transpile as qiskit_transpile
-from .transpilers.ucc_defaults import UCCDefault1
+from qiskit.circuit import QuantumCircuit as QiskitCircuit
+from qiskit.transpiler import PassManager
 
-import sys
-import warnings
+from .transpilers.repeated_run import compile_repeated_run_on_backend
+from .transpilers.structural_simplification import simplify_circuit
+from .transpilers.ucc_defaults import UCCDefault1
 
 # Specify the supported Python version range
 REQUIRED_MAJOR = 3
@@ -25,6 +31,107 @@ if current_major != REQUIRED_MAJOR or not (
 supported_circuit_formats = ConversionGraph().nodes()
 
 
+def _translate_to_qiskit(circuit):
+    """Translate to Qiskit, but skip qBraid when already in Qiskit format."""
+
+    if isinstance(circuit, QiskitCircuit):
+        return circuit
+    return translate(circuit, "qiskit")
+
+
+def _translate_from_qiskit(circuit, return_format):
+    """Translate from Qiskit only when the caller asked for another format."""
+
+    if return_format == "qiskit":
+        return circuit
+    return translate(circuit, return_format)
+
+
+def _satisfies_backend_target(circuit, backend):
+    """Return True when every instruction is supported on its physical qubits."""
+
+    target = getattr(backend, "target", None)
+    if target is None or circuit.num_qubits != target.num_qubits:
+        return False
+    for instruction in circuit.data:
+        name = instruction.operation.name
+        if name == "barrier":
+            continue
+        qargs = tuple(
+            circuit.find_bit(qubit).index for qubit in instruction.qubits
+        )
+        if not target.instruction_supported(name, qargs):
+            return False
+    return True
+
+
+def _enforce_backend_constraints_keeping_layout(circuit, compiler):
+    """Re-translate an already laid-out circuit without losing its layout.
+
+    Re-transpiling a physical circuit makes Qiskit treat it as virtual and
+    attach a fresh layout, which silently discards the original initial layout
+    and routing permutation. Keep the circuit when it already fits the
+    backend; otherwise pin the trivial layout and compose any extra routing
+    permutation onto the original one.
+    """
+
+    if _satisfies_backend_target(circuit, compiler.target_backend):
+        return circuit
+
+    retranslated = qiskit_transpile(
+        circuit,
+        backend=compiler.target_backend,
+        optimization_level=0,
+        initial_layout=list(range(circuit.num_qubits)),
+        seed_transpiler=getattr(compiler, "seed_transpiler", None),
+    )
+    original_layout = circuit.layout
+    extra_final_layout = (
+        None
+        if retranslated.layout is None
+        else retranslated.layout.final_layout
+    )
+    if extra_final_layout is None:
+        final_layout = original_layout.final_layout
+    elif original_layout.final_layout is None:
+        final_layout = extra_final_layout
+    else:
+        final_layout = original_layout.final_layout.compose(
+            extra_final_layout, retranslated.qubits
+        )
+    retranslated._layout = dataclasses.replace(
+        original_layout,
+        final_layout=final_layout,
+        _output_qubit_list=retranslated.qubits,
+    )
+    return retranslated
+
+
+def _enforce_target_constraints(circuit, compiler):
+    """Re-translate a circuit into the requested backend or basis.
+
+    Custom passes run after the default pipeline and may introduce operations
+    outside the requested target. Run a final, non-optimizing translation so
+    the public ``compile()`` contract still holds for the returned circuit.
+    """
+
+    if compiler.target_backend is not None:
+        if circuit.layout is None:
+            return qiskit_transpile(
+                circuit,
+                backend=compiler.target_backend,
+                optimization_level=0,
+                seed_transpiler=getattr(compiler, "seed_transpiler", None),
+            )
+        return _enforce_backend_constraints_keeping_layout(circuit, compiler)
+
+    return qiskit_transpile(
+        circuit,
+        basis_gates=list(compiler.target_gateset),
+        optimization_level=0,
+    )
+
+
 def compile(
     circuit,
     return_format="original",
@@ -32,10 +139,20 @@ def compile(
     target_backend=None,
     custom_passes=None,
     callback=None,
+    seed_transpiler=None,
 ):
     """Compiles the provided quantum `circuit` by translating it to a Qiskit
     circuit, transpiling it, and returning the optimized circuit in the
     specified `return_format`.
+
+    Compilation uses ``UCCDefault1(structural_prepass=True)``: structure-aware
+    passes (``PreBasisStructuralSimplification`` and
+    ``PhasePolynomialSynthesis``) run on the high-level circuit before it is
+    lowered. Without a ``target_backend`` the rest is UCC's local-pass
+    pipeline; with one, layout, routing and hardware optimization use
+    Qiskit's level-3 preset, and a circuit dominated by one repeated
+    composite block is mapped one block at a time
+    (``ucc.transpilers.repeated_run``).
 
     Args:
         circuit (object): The quantum circuit to be compiled.
@@ -57,6 +174,9 @@ def compile(
                     time (float): the time to execute the pass
                     property_set (PropertySet): the property set
                     count (int): the index for the pass execution
+        seed_transpiler (int): (optional)
+            Fixed seed forwarded to Qiskit's preset pass manager when a
+            ``target_backend`` is given, for reproducible layout and routing.
 
     Returns:
         object: The compiled circuit in the specified format.
@@ -64,29 +184,31 @@ def compile(
     if return_format == "original":
         return_format = get_program_type_alias(circuit)
 
-    # Translate to Qiskit Circuit object
-    qiskit_circuit = translate(circuit, "qiskit")
-
-    # Initialize the UCCDefault1 compiler with the target device and gateset
-    ucc_default1 = UCCDefault1(
-        target_backend=target_backend, target_gateset=target_gateset
+    source_circuit = _translate_to_qiskit(circuit)
+    compiler = UCCDefault1(
+        target_backend=target_backend,
+        target_gateset=target_gateset,
+        seed_transpiler=seed_transpiler,
+        structural_prepass=True,
     )
 
-    # Translate into the target device gateset first; no optimization
-    basis_translated_circuit = qiskit_transpile(
-        qiskit_circuit,
-        basis_gates=ucc_default1.target_gateset,
-        optimization_level=0,
-    )
+    compiled_circuit = None
+    if target_backend is not None and callback is None:
+        # Simplify first so cancellations are visible to run detection; if
+        # no run is reused, the simplified circuit is what gets compiled.
+        source_circuit = simplify_circuit(source_circuit)
+        compiled_circuit = compile_repeated_run_on_backend(
+            source_circuit, target_backend, seed_transpiler=seed_transpiler
+        )
+    if compiled_circuit is None:
+        compiled_circuit = compiler.run(source_circuit, callback=callback)
 
-    if custom_passes is not None:
-        ucc_default1.pass_manager.append(custom_passes)
+    if custom_passes:
+        custom_pass_manager = PassManager()
+        custom_pass_manager.append(custom_passes)
+        compiled_circuit = custom_pass_manager.run(
+            compiled_circuit, callback=callback
+        )
 
-    # Compile the circuit using the UCCDefault1 pass manager
-    compiled_circuit = ucc_default1.run(
-        basis_translated_circuit, callback=callback
-    )
-
-    # Translate the compiled circuit to the desired format
-    final_result = translate(compiled_circuit, return_format)
-    return final_result
+    compiled_circuit = _enforce_target_constraints(compiled_circuit, compiler)
+    return _translate_from_qiskit(compiled_circuit, return_format)
