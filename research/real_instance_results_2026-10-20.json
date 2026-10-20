@@ -1,0 +1,742 @@
+{
+  "phase_estimation_real": {
+    "translation_only": {
+      "method": "translation_only",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 159838,
+        "depth": 121214,
+        "multi_qubit_gates": 67608,
+        "cx_count": 67608,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.058
+    },
+    "qiskit_opt1": {
+      "method": "qiskit_opt1",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 159838,
+        "depth": 121214,
+        "multi_qubit_gates": 67608,
+        "cx_count": 67608,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.099
+    },
+    "qiskit_opt3": {
+      "method": "qiskit_opt3",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 166805,
+        "depth": 119204,
+        "multi_qubit_gates": 58491,
+        "cx_count": 58491,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.549
+    },
+    "qiskit_commutative_inverse": {
+      "method": "qiskit_commutative_inverse",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 159838,
+        "depth": 121214,
+        "multi_qubit_gates": 67608,
+        "cx_count": 67608,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.281
+    },
+    "baseline_ucc": {
+      "method": "baseline_ucc",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 469792,
+        "depth": 326241,
+        "multi_qubit_gates": 58491,
+        "cx_count": 58491,
+        "gate_types": [
+          "cx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 37.796
+    },
+    "optimized_ucc": {
+      "method": "optimized_ucc",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 450,
+        "depth": 203,
+        "multi_qubit_gates": 249,
+        "cx_count": 249,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.724
+    },
+    "ucc_local_only": {
+      "method": "ucc_local_only",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 167826,
+        "depth": 122243,
+        "multi_qubit_gates": 58491,
+        "cx_count": 58491,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 77.783
+    },
+    "ucc_plus_structural": {
+      "method": "ucc_plus_structural",
+      "family": "phase_estimation_real",
+      "input": {
+        "num_qubits": 15,
+        "total_gates": 6,
+        "depth": 2,
+        "multi_qubit_gates": 1,
+        "cx_count": 0,
+        "gate_types": [
+          "QPE",
+          "x"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 15,
+        "total_gates": 167826,
+        "depth": 122243,
+        "multi_qubit_gates": 58491,
+        "cx_count": 58491,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 81.713
+    }
+  },
+  "grover_real": {
+    "translation_only": {
+      "method": "translation_only",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 85403,
+        "depth": 55892,
+        "multi_qubit_gates": 33408,
+        "cx_count": 33408,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.069
+    },
+    "qiskit_opt1": {
+      "method": "qiskit_opt1",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 80718,
+        "depth": 54307,
+        "multi_qubit_gates": 32544,
+        "cx_count": 32544,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.11
+    },
+    "qiskit_opt3": {
+      "method": "qiskit_opt3",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 79029,
+        "depth": 54163,
+        "multi_qubit_gates": 32544,
+        "cx_count": 32544,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.295
+    },
+    "qiskit_commutative_inverse": {
+      "method": "qiskit_commutative_inverse",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 85403,
+        "depth": 55892,
+        "multi_qubit_gates": 33408,
+        "cx_count": 33408,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.06
+    },
+    "baseline_ucc": {
+      "method": "baseline_ucc",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 280240,
+        "depth": 151722,
+        "multi_qubit_gates": 32544,
+        "cx_count": 32544,
+        "gate_types": [
+          "cx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 1.119
+    },
+    "optimized_ucc": {
+      "method": "optimized_ucc",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 74994,
+        "depth": 53355,
+        "multi_qubit_gates": 30960,
+        "cx_count": 30960,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 1.828
+    },
+    "ucc_local_only": {
+      "method": "ucc_local_only",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 79102,
+        "depth": 54163,
+        "multi_qubit_gates": 32544,
+        "cx_count": 32544,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 2.132
+    },
+    "ucc_plus_structural": {
+      "method": "ucc_plus_structural",
+      "family": "grover_real",
+      "input": {
+        "num_qubits": 11,
+        "total_gates": 47,
+        "depth": 37,
+        "multi_qubit_gates": 36,
+        "cx_count": 0,
+        "gate_types": [
+          "Q",
+          "h"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 11,
+        "total_gates": 79102,
+        "depth": 54163,
+        "multi_qubit_gates": 32544,
+        "cx_count": 32544,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 2.198
+    }
+  },
+  "qaoa_real": {
+    "translation_only": {
+      "method": "translation_only",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.02
+    },
+    "qiskit_opt1": {
+      "method": "qiskit_opt1",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.029
+    },
+    "qiskit_opt3": {
+      "method": "qiskit_opt3",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.15
+    },
+    "qiskit_commutative_inverse": {
+      "method": "qiskit_commutative_inverse",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.276
+    },
+    "baseline_ucc": {
+      "method": "baseline_ucc",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 167833,
+        "depth": 7133,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "ry",
+          "rz"
+        ]
+      },
+      "runtime_s": 0.76
+    },
+    "optimized_ucc": {
+      "method": "optimized_ucc",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 25352,
+        "depth": 1590,
+        "multi_qubit_gates": 12648,
+        "cx_count": 12648,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 1.644
+    },
+    "ucc_local_only": {
+      "method": "ucc_local_only",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 1.644
+    },
+    "ucc_plus_structural": {
+      "method": "ucc_plus_structural",
+      "family": "qaoa_real",
+      "input": {
+        "num_qubits": 32,
+        "total_gates": 12704,
+        "depth": 822,
+        "multi_qubit_gates": 11904,
+        "cx_count": 0,
+        "gate_types": [
+          "h",
+          "rx",
+          "rzz"
+        ]
+      },
+      "status": "ok",
+      "output": {
+        "num_qubits": 32,
+        "total_gates": 36512,
+        "depth": 2416,
+        "multi_qubit_gates": 23808,
+        "cx_count": 23808,
+        "gate_types": [
+          "cx",
+          "h",
+          "rx",
+          "rz"
+        ]
+      },
+      "runtime_s": 1.663
+    }
+  }
+}

@@ -1,3 +1,36 @@
+# Structure-aware compiler passes for UCC (fork)
+
+This fork of the [Unitary Compiler Collection](https://github.com/unitaryfoundation/ucc)
+adds two Qiskit `TransformationPass`es that act *before* a circuit is lowered
+to basis gates, where structure such as `QFT QFT^-1`, repeated blocks, and
+phase polynomials is otherwise lost (UCC issue #662):
+
+- `PreBasisStructuralSimplification`: exact inverse-pair, repeated-block, and
+  commuting-phase simplification on high-level instructions;
+- `PhasePolynomialSynthesis`: resynthesizes CNOT + phase structure (controlled
+  powers of diagonal unitaries, commuting `ZZ` layers) with parity networks.
+
+They run under `UCCDefault1(structural_prepass=True)`, which `ucc.compile`
+uses on this fork. Against Qiskit `optimization_level=3` on official Qiskit
+library circuits (basis `{cx, rx, ry, rz, h}`): phase estimation 166,805 ->
+450 gates, QAOA (K32, 24 layers) 23,808 -> 12,648 CNOTs, Grover 32,544 ->
+30,960 CNOTs. On the ucc-bench compilation suite the 2-qubit counts are
+unchanged.
+
+| Branch | Contents |
+|---|---|
+| `structure-aware-passes` | The passes, tests and docs on top of UCC `main` (pull-request branch) |
+| `uf-microgrant` | That branch plus `research/` (benchmark scripts and results) and `proposal/` |
+
+- Upstream discussion: DISCUSSION_URL
+- Microgrant proposal: [`proposal/unitary_foundation_microgrant_proposal.md`](proposal/unitary_foundation_microgrant_proposal.md)
+- Benchmarks: [`research/README.md`](research/README.md)
+- Related paper: [representation-as-resource](https://github.com/OIerYangJZ/representation-as-resource)
+
+The upstream UCC README follows unchanged.
+
+---
+
 ##  <a href="https://github.com/unitaryfoundation/ucc"><img src="https://raw.githubusercontent.com/unitaryfoundation/ucc/main/docs/source/img/UCC-logo.png" alt="light orange oval with a hissing black cat in the center with UCC written across the bottom" width="150"/></a> Unitary Compiler Collection
 
 [![Repository](https://img.shields.io/badge/GitHub-5C5C5C.svg?logo=github)](https://github.com/unitaryfoundation/ucc)
